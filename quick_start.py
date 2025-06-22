@@ -49,11 +49,15 @@ def quick_test_mining():
         print("\n3️⃣  Minerando Comments (amostra)...")
         comments_count = mine_sample_comments(miner)
         
+        print("\n4️⃣  Minerando Reviews (amostra)...")
+        reviews_count = mine_sample_reviews(miner)
+        
         print("\n✅ Teste de mineração concluído!")
         print(f"📊 Resultados:")
         print(f"   - Issues: {issues_count}")
         print(f"   - Pull Requests: {prs_count}")
         print(f"   - Comments: {comments_count}")
+        print(f"   - Reviews: {reviews_count}")
         print(f"   - Dados salvos em: ./test_data/")
         
         return True
@@ -181,18 +185,19 @@ def mine_sample_comments(miner, max_pages=1):
         if not response or not response.get("data"):
             break
             
-        comments_data = response["data"]["repository"]["issueComments"]
+        comments_data = response["data"]["repository"]["issues"]
         
-        for comment in comments_data["nodes"]:
-            comment_record = {
-                "id": comment["id"],
-                "created_at": comment["createdAt"],
-                "author": comment["author"]["login"] if comment["author"] else "",
-                "issue_number": comment["issue"]["number"],
-                "reactions_count": comment["reactions"]["totalCount"]
-            }
-            batch_data.append(comment_record)
-            total_comments += 1
+        for issue in comments_data["nodes"]:
+            for comment in issue["comments"]["nodes"]:
+                comment_record = {
+                    "id": comment["id"],
+                    "created_at": comment["createdAt"],
+                    "author": comment["author"]["login"] if comment["author"] else "",
+                    "issue_number": issue["number"],
+                    "reactions_count": comment["reactions"]["totalCount"]
+                }
+                batch_data.append(comment_record)
+                total_comments += 1
         
         # Verificar se há mais páginas
         page_info = comments_data["pageInfo"]
@@ -208,6 +213,55 @@ def mine_sample_comments(miner, max_pages=1):
         miner.save_to_csv(batch_data, "sample_comments.csv")
     
     return total_comments
+
+def mine_sample_reviews(miner, max_pages=1):
+    """Minera uma amostra pequena de reviews"""
+    cursor = None
+    total_reviews = 0
+    batch_data = []
+    pages_processed = 0
+    
+    while pages_processed < max_pages:
+        variables = {
+            "owner": miner.repo_owner,
+            "name": miner.repo_name,
+            "cursor": cursor
+        }
+        
+        response = miner.make_graphql_request(miner.get_reviews_query(), variables)
+        
+        if not response or not response.get("data"):
+            break
+            
+        prs_data = response["data"]["repository"]["pullRequests"]
+        
+        for pr in prs_data["nodes"]:
+            for review in pr["reviews"]["nodes"]:
+                review_record = {
+                    "id": review["id"],
+                    "state": review["state"],
+                    "created_at": review["createdAt"],
+                    "author": review["author"]["login"] if review["author"] else "",
+                    "pr_number": pr["number"],
+                    "comments_count": review["comments"]["totalCount"]
+                }
+                batch_data.append(review_record)
+                total_reviews += 1
+        
+        # Verificar se há mais páginas
+        page_info = prs_data["pageInfo"]
+        if not page_info["hasNextPage"]:
+            break
+            
+        cursor = page_info["endCursor"]
+        pages_processed += 1
+        print(f"   Processados {total_reviews} reviews...")
+    
+    # Salvar dados
+    if batch_data:
+        miner.save_to_csv(batch_data, "sample_reviews.csv")
+    
+    return total_reviews
 
 def main():
     print("Teste rápido do sistema de mineração.\n")

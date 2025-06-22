@@ -76,27 +76,47 @@ class GitHubMiner:
             "variables": variables or {}
         }
         
-        try:
-            response = requests.post(
-                self.graphql_url,
-                headers=self.headers,
-                json=payload,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if "errors" in data:
-                    logging.error(f"GraphQL errors: {data['errors']}")
-                    return None
-                return data
-            else:
-                logging.error(f"HTTP Error {response.status_code}: {response.text}")
-                return None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    self.graphql_url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=30
+                )
                 
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Request exception: {e}")
-            return None
+                if response.status_code == 200:
+                    data = response.json()
+                    if "errors" in data:
+                        logging.error(f"GraphQL errors: {data['errors']}")
+                        return None
+                    return data
+                elif response.status_code in [502, 503, 504]:
+                    # Erros temporários do servidor - tentar novamente
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 30  # 30s, 60s, 90s
+                        logging.warning(f"Erro {response.status_code} (tentativa {attempt + 1}/{max_retries}). Aguardando {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logging.error(f"HTTP Error {response.status_code} após {max_retries} tentativas: {response.text}")
+                        return None
+                else:
+                    logging.error(f"HTTP Error {response.status_code}: {response.text}")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 30
+                    logging.warning(f"Exceção de rede (tentativa {attempt + 1}/{max_retries}): {e}. Aguardando {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logging.error(f"Request exception após {max_retries} tentativas: {e}")
+                    return None
+        
+        return None
     
     def get_issues_query(self) -> str:
         return """
@@ -145,7 +165,7 @@ class GitHubMiner:
         return """
         query($owner: String!, $name: String!, $cursor: String) {
           repository(owner: $owner, name: $name) {
-            pullRequests(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
+            pullRequests(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}, states: [OPEN, CLOSED, MERGED]) {
               pageInfo {
                 hasNextPage
                 endCursor
@@ -196,25 +216,27 @@ class GitHubMiner:
         return """
         query($owner: String!, $name: String!, $cursor: String) {
           repository(owner: $owner, name: $name) {
-            issueComments(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: ASC}) {
+            issues(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
               pageInfo {
                 hasNextPage
                 endCursor
               }
               nodes {
-                id
-                body
-                createdAt
-                updatedAt
-                author {
-                  login
-                }
-                issue {
-                  number
-                  title
-                }
-                reactions {
-                  totalCount
+                number
+                title
+                comments(first: 100) {
+                  nodes {
+                    id
+                    body
+                    createdAt
+                    updatedAt
+                    author {
+                      login
+                    }
+                    reactions {
+                      totalCount
+                    }
+                  }
                 }
               }
             }
@@ -407,21 +429,22 @@ class GitHubMiner:
             if not response or not response.get("data"):
                 break
                 
-            comments_data = response["data"]["repository"]["issueComments"]
+            comments_data = response["data"]["repository"]["issues"]
             
-            for comment in comments_data["nodes"]:
-                comment_record = {
-                    "id": comment["id"],
-                    "body": comment["body"][:1000] if comment["body"] else "",  # Limitar tamanho
-                    "created_at": comment["createdAt"],
-                    "updated_at": comment["updatedAt"],
-                    "author": comment["author"]["login"] if comment["author"] else "",
-                    "issue_number": comment["issue"]["number"],
-                    "issue_title": comment["issue"]["title"],
-                    "reactions_count": comment["reactions"]["totalCount"]
-                }
-                batch_data.append(comment_record)
-                total_comments += 1
+            for issue in comments_data["nodes"]:
+                for comment in issue["comments"]["nodes"]:
+                    comment_record = {
+                        "id": comment["id"],
+                        "body": comment["body"][:1000] if comment["body"] else "",  # Limitar tamanho
+                        "created_at": comment["createdAt"],
+                        "updated_at": comment["updatedAt"],
+                        "author": comment["author"]["login"] if comment["author"] else "",
+                        "issue_number": issue["number"],
+                        "issue_title": issue["title"],
+                        "reactions_count": comment["reactions"]["totalCount"]
+                    }
+                    batch_data.append(comment_record)
+                    total_comments += 1
 
             if len(batch_data) >= save_batch_size:
                 self.save_to_csv(batch_data, "comments.csv")
