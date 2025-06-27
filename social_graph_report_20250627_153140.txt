@@ -1,0 +1,35 @@
+RELATÓRIO DE ANÁLISE DE GRAFO SOCIAL
+==================================================
+Gerado em: 2025-06-27 15:31:40
+
+ESTATÍSTICAS BÁSICAS:
+--------------------
+Total de usuários (nós): 7,499
+Total de interações (arestas): 46
+Nível de conectividade: 0.00%
+
+USUÁRIOS MAIS INFLUENTES:
+-------------------------
+ 1. charris (Score: 344.2)
+ 2. numpy-gitbot (Score: 164.1)
+ 3. seberg (Score: 117.3)
+ 4. eric-wieser (Score: 110.9)
+ 5. mattip (Score: 92.2)
+ 6. thouis (Score: 74.1)
+ 7. rgommers (Score: 63.1)
+ 8. juliantaylor (Score: 55.9)
+ 9. BvB93 (Score: 47.6)
+10. ngoldbaum (Score: 40.7)
+
+GRUPOS NATURAIS:
+---------------
+Total de grupos encontrados: 7
+Grupo 1: 7 membros
+Grupo 2: 5 membros
+Grupo 3: 4 membros
+Grupo 4: 4 membros
+Grupo 5: 3 membros
+Grupo 6: 5 membros
+Grupo 7: 6 membros
+
+Para análises detalhadas, execute: python social_graph_analysis.py
