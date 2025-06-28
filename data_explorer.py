@@ -321,7 +321,7 @@ class DataExplorer:
             if not fragmenters:
                 f.write("Nenhuma fonte de fragmentação identificada.\n")
             else:
-                f.write("Principais usuários que podem estar causando fragmentação na comunidade:\n\n")
+                f.write("Principais usuários que podem causar maior fragmentação:\n\n")
                 
                 for i, (user, score) in enumerate(fragmenters, 1):
                     degree = self.user_degrees.get(user, 0)
@@ -333,12 +333,10 @@ class DataExplorer:
                     for n1, n2 in combinations(neighbors, 2):
                         if n2 in self.user_interactions.get(n1, {}):
                             triangles += 1
-                    clustering_coeff = (2 * triangles) / (degree * (degree - 1)) if degree > 1 else 0
                     
                     f.write(f"{i}. {user}:\n")
                     f.write(f"   - Score de fragmentação: {score:.2f}\n")
                     f.write(f"   - Grau de conexão: {degree}\n")
-                    f.write(f"   - Coeficiente de agrupamento: {clustering_coeff:.2f}\n")
                     f.write(f"   - Conexões diretas: {neighbor_count}\n")
                     f.write(f"   - Amostra de conexões: {sample_neighbors}\n")
                     
