@@ -291,15 +291,18 @@ class DataExplorer:
         
         return non_interacting[:top_n]
     
-    def generate_report(self, output_file: str = "data_report.txt"):
-        """Gera relatório otimizado com informações detalhadas sobre fragmentação"""
-        print(f"\n📄 Gerando relatório: {output_file}")
-        
+def generate_report(self, output_file: str = "data_report.txt"):
+    """Gera relatório otimizado"""
+    print(f"\n📄 Gerando relatório: {output_file}")
+    
+    try:
         with open(output_file, 'w', encoding='utf-8') as f:
+            # Cabeçalho do relatório
             f.write("RELATÓRIO DE ANÁLISE - VERSÃO OTIMIZADA\n")
             f.write("=" * 80 + "\n")
             f.write(f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
+            # Seção de dados carregados
             f.write("DADOS CARREGADOS:\n")
             f.write("-" * 60 + "\n")
             f.write(f"Issues: {len(self.data.get('issues', [])):,} registros\n")
@@ -308,50 +311,47 @@ class DataExplorer:
             f.write(f"Reviews: {len(self.data.get('reviews', [])):,} registros\n")
             f.write("\n")
             
+            # 1. Top influentes
             f.write("\n1. TOP 5 USUÁRIOS MAIS INFLUENTES\n")
             f.write("-" * 60 + "\n")
             top_influencers = self.get_top_influencers(5)
             for i, (user, degree) in enumerate(top_influencers, 1):
                 f.write(f"{i}. {user}: grau {degree}\n")
             
-            f.write("\n2. PRINCIPAIS FONTES DE FRAGMENTAÇÃO (DETALHADO)\n")
+            # 2. Fragmentação
+            f.write("\n2. PRINCIPAIS FONTES DE FRAGMENTAÇÃO\n")
             f.write("-" * 60 + "\n")
-            fragmenters = self.identify_fragmentation_sources()[:5]
+            f.write("""O score de fragmentação indica quanto um usuário potencialmente divide a rede em comunidades separadas.
+É calculado considerando:
+- Grau de conexão (número de interações)
+- Coeficiente de agrupamento (quanto os contatos do usuário se conectam entre si)
+- Quanto maior o score, maior o potencial de fragmentação
+
+Score = Grau do Usuário × (1 - Coeficiente de Agrupamento)
+""")
             
-            if not fragmenters:
-                f.write("Nenhuma fonte de fragmentação identificada.\n")
-            else:
-                f.write("Principais usuários que podem estar causando fragmentação na comunidade:\n\n")
+            fragmenters = self.identify_fragmentation_sources()[:5]
+            if fragmenters:
+                avg_degree = sum(self.user_degrees.values()) / len(self.user_degrees) if self.user_degrees else 0
+                f.write(f"\nMédia de conexões por usuário: {avg_degree:.1f}\n\n")
                 
                 for i, (user, score) in enumerate(fragmenters, 1):
-                    # Coletando dados adicionais sobre o usuário
                     degree = self.user_degrees.get(user, 0)
-                    neighbors = list(self.user_interactions.get(user, {}).keys())
-                    neighbor_count = len(neighbors)
-                    sample_neighbors = ", ".join(neighbors[:3]) + ("..." if neighbor_count > 3 else "")
-                    
-                    # Calculando coeficiente de agrupamento
-                    triangles = 0
-                    for n1, n2 in combinations(neighbors, 2):
-                        if n2 in self.user_interactions.get(n1, {}):
-                            triangles += 1
-                    clustering_coeff = (2 * triangles) / (degree * (degree - 1)) if degree > 1 else 0
-                    
+                    clustering = 1 - (score / degree) if degree > 0 else 0
                     f.write(f"{i}. {user}:\n")
-                    f.write(f"   - Score de fragmentação: {score:.2f}\n")
-                    f.write(f"   - Grau de conexão: {degree}\n")
-                    f.write(f"   - Coeficiente de agrupamento: {clustering_coeff:.2f}\n")
-                    f.write(f"   - Conexões diretas: {neighbor_count}\n")
-                    f.write(f"   - Amostra de conexões: {sample_neighbors}\n")
-                    
-                    # Encontrando usuários próximos não conectados
-                    non_interacting = self.find_non_interacting_closest(user, 3)
-                    if non_interacting:
-                        f.write("   - Potenciais conexões ausentes (mais próximas não conectadas):\n")
-                        for j, (target, distance) in enumerate(non_interacting, 1):
-                            f.write(f"      {j}. {target} (distância {distance})\n")
-                    f.write("\n")
+                    f.write(f"   - Score: {score:.2f}\n")
+                    f.write(f"   - Conexões diretas: {degree}\n")
+                    f.write(f"   - Agrupamento: {clustering:.3f}\n")
+                    f.write(f"   - Conexões/Score: {degree/score:.1f}x\n\n")
+                
+                f.write("🔍 Interpretação:\n")
+                f.write("- Usuários com alto score são 'pontes' entre comunidades\n")
+                f.write("- Remover esses usuários aumentaria a separação entre grupos\n")
+                f.write(f"- Valores acima de {avg_degree*2:.1f} indicam alta fragmentação\n")
+            else:
+                f.write("\nNenhuma fonte significativa de fragmentação identificada.\n")
             
+            # 3. Grupos naturais
             f.write("\n3. GRUPOS NATURAIS (TOP 3)\n")
             f.write("-" * 60 + "\n")
             groups = self.find_natural_groups()
@@ -365,15 +365,22 @@ class DataExplorer:
             else:
                 f.write("Nenhum grupo identificado.\n")
             
+            # 4. Nível de conexão
             f.write("\n\n4. NÍVEL DE CONEXÃO DA COMUNIDADE\n")
             f.write("-" * 60 + "\n")
             connection_level = self.calculate_connection_level()
             f.write(f"{connection_level:.2f}% de conexão\n")
             
+            # Rodapé
             f.write("\n" + "=" * 80 + "\n")
             f.write("FIM DO RELATÓRIO\n")
         
         print(f"✅ Relatório salvo em: {output_file}")
+    
+    except PermissionError:
+        print(f"❌ Erro: Permissão negada para escrever em {output_file}")
+    except Exception as e:
+        print(f"❌ Erro inesperado ao gerar relatório: {str(e)}")
 
 def main():
     explorer = DataExplorer()
