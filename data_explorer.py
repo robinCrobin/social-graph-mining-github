@@ -9,6 +9,8 @@ from datetime import datetime
 from collections import Counter, defaultdict, deque
 import heapq
 from itertools import combinations
+from graphs_project.matrix import MatrixGraph  # ou from graphs_project.list import ListGraph
+from graphs_project.list import ListGraph
 
 class DataExplorer:
     """Explorador de dados minerados"""
@@ -291,6 +293,67 @@ class DataExplorer:
         
         return non_interacting[:top_n]
     
+    def find_connected_components(self):
+        """Encontra todos os componentes conexos no grafo"""
+        if self.user_interactions is None:
+            self.build_interaction_graph()
+        
+        if not self.user_interactions:
+            return []
+        
+        visited = set()
+        components = []
+        
+        for node in self.user_interactions:
+            if node not in visited:
+                queue = deque([node])
+                component = set()
+                while queue:
+                    current = queue.popleft()
+                    if current not in visited:
+                        visited.add(current)
+                        component.add(current)
+                        for neighbor in self.user_interactions.get(current, {}):
+                            if neighbor not in visited:
+                                queue.append(neighbor)
+                components.append(component)
+        
+        return components
+    
+    def calculate_fragmentation_impact(self, user):
+        """Calcula quantos novos componentes seriam criados ao remover o usuário"""
+        if self.user_interactions is None:
+            self.build_interaction_graph()
+        
+        if user not in self.user_interactions:
+            return 0
+        
+        original_components = self.find_connected_components()
+        original_count = len(original_components)
+        
+        new_graph = {
+            u: {v: w for v, w in neighbors.items() if v != user}
+            for u, neighbors in self.user_interactions.items()
+            if u != user
+        }
+        
+        visited = set()
+        new_count = 0
+        
+        for node in new_graph:
+            if node not in visited:
+                queue = deque([node])
+                while queue:
+                    current = queue.popleft()
+                    if current not in visited:
+                        visited.add(current)
+                        for neighbor in new_graph.get(current, {}):
+                            if neighbor not in visited:
+                                queue.append(neighbor)
+                new_count += 1
+    
+        return new_count - original_count
+
     def generate_report(self, output_file: str = "data_report.txt"):
         """Gera relatório"""
         print(f"\n📄 Gerando relatório: {output_file}")
@@ -336,6 +399,7 @@ class DataExplorer:
                     
                     f.write(f"{i}. {user}:\n")
                     f.write(f"   - Score de fragmentação: {score:.2f}\n")
+                    f.write(f"   - Novos componentes se removido: {self.calculate_fragmentation_impact(user)}\n")
                     f.write(f"   - Grau de conexão: {degree}\n")
                     f.write(f"   - Conexões diretas: {neighbor_count}\n")
                     f.write(f"   - Amostra de conexões: {sample_neighbors}\n")
