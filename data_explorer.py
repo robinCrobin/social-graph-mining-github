@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script otimizado para explorar dados minerados do GitHub
+Script para explorar dados minerados do GitHub
 """
 
 import os
@@ -87,7 +87,7 @@ class DataExplorer:
             ))
     
     def _process_issues(self, interactions, degrees):
-        """Processa interações em issues de forma otimizada"""
+        """Processa interações em issues"""
         if 'issues' not in self.data:
             return
             
@@ -161,7 +161,7 @@ class DataExplorer:
         return heapq.nlargest(top_n, self.user_degrees.items(), key=lambda x: x[1])
     
     def identify_fragmentation_sources(self):
-        """Versão otimizada para identificar fontes de fragmentação"""
+        """Funcao para identificar fontes de fragmentação"""
         if self.user_interactions is None:
             self.build_interaction_graph()
         
@@ -191,7 +191,7 @@ class DataExplorer:
         return sorted(fragmentation_scores.items(), key=lambda x: x[1], reverse=True)
     
     def find_natural_groups(self):
-        """Algoritmo otimizado para detecção de comunidades"""
+        """Algoritmo para detecção de comunidades"""
         if self.user_interactions is None:
             self.build_interaction_graph()
         
@@ -235,7 +235,7 @@ class DataExplorer:
         return dict(groups)
     
     def calculate_connection_level(self):
-        """Cálculo otimizado do nível de conexão"""
+        """Cálculo do nível de conexão"""
         if self.user_interactions is None:
             self.build_interaction_graph()
         
@@ -253,7 +253,7 @@ class DataExplorer:
         return (existing_edges / max_edges) * 100
     
     def find_closest_users(self, user, top_n=5):
-        """BFS otimizado para encontrar usuários mais próximos"""
+        """BFS para encontrar usuários mais próximos"""
         if self.user_interactions is None:
             self.build_interaction_graph()
         
@@ -276,7 +276,7 @@ class DataExplorer:
         return closest
     
     def find_non_interacting_closest(self, user, top_n=5):
-        """Versão otimizada para encontrar próximos não interagentes"""
+        """Funcao para encontrar próximos não interagentes"""
         if self.user_interactions is None:
             self.build_interaction_graph()
         
@@ -292,11 +292,11 @@ class DataExplorer:
         return non_interacting[:top_n]
     
     def generate_report(self, output_file: str = "data_report.txt"):
-        """Gera relatório otimizado com informações detalhadas sobre fragmentação"""
+        """Gera relatório"""
         print(f"\n📄 Gerando relatório: {output_file}")
         
         with open(output_file, 'w', encoding='utf-8') as f:
-            f.write("RELATÓRIO DE ANÁLISE - VERSÃO OTIMIZADA\n")
+            f.write("RELATÓRIO DE ANÁLISE\n")
             f.write("=" * 80 + "\n")
             f.write(f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
@@ -314,7 +314,7 @@ class DataExplorer:
             for i, (user, degree) in enumerate(top_influencers, 1):
                 f.write(f"{i}. {user}: grau {degree}\n")
             
-            f.write("\n2. PRINCIPAIS FONTES DE FRAGMENTAÇÃO (DETALHADO)\n")
+            f.write("\n2. PRINCIPAIS FONTES DE FRAGMENTAÇÃO\n")
             f.write("-" * 60 + "\n")
             fragmenters = self.identify_fragmentation_sources()[:5]
             
@@ -324,13 +324,11 @@ class DataExplorer:
                 f.write("Principais usuários que podem estar causando fragmentação na comunidade:\n\n")
                 
                 for i, (user, score) in enumerate(fragmenters, 1):
-                    # Coletando dados adicionais sobre o usuário
                     degree = self.user_degrees.get(user, 0)
                     neighbors = list(self.user_interactions.get(user, {}).keys())
                     neighbor_count = len(neighbors)
                     sample_neighbors = ", ".join(neighbors[:3]) + ("..." if neighbor_count > 3 else "")
                     
-                    # Calculando coeficiente de agrupamento
                     triangles = 0
                     for n1, n2 in combinations(neighbors, 2):
                         if n2 in self.user_interactions.get(n1, {}):
@@ -344,7 +342,6 @@ class DataExplorer:
                     f.write(f"   - Conexões diretas: {neighbor_count}\n")
                     f.write(f"   - Amostra de conexões: {sample_neighbors}\n")
                     
-                    # Encontrando usuários próximos não conectados
                     non_interacting = self.find_non_interacting_closest(user, 3)
                     if non_interacting:
                         f.write("   - Potenciais conexões ausentes (mais próximas não conectadas):\n")
@@ -378,7 +375,7 @@ class DataExplorer:
 def main():
     explorer = DataExplorer()
     
-    print("🔍 EXPLORADOR DE DADOS - VERSÃO OTIMIZADA")
+    print("🔍 EXPLORADOR DE DADOS")
     print("="*50)
     
     explorer.load_data()
