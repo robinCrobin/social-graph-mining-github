@@ -250,11 +250,12 @@ class DataExplorer:
 
 
         natural_groups = self.identify_natural_groups()
+        natural_groups.sort(key=len, reverse=True)
         report += f"\nNúmero de Grupos Naturais (Componentes Fortemente Conexos): {len(natural_groups)}\n"
-        if natural_groups:
-            report += "\nExemplo de Grupos Naturais:\n"
-            for i, group in enumerate(natural_groups[:5], 1):
-                report += f"{i}. {group}\n"
+        report += "\nTOP 5 MAIORES GRUPOS NATURAIS:\n"
+        for i, group in enumerate(natural_groups[:5], 1):
+            report += f"{i}. ({len(group)} membros): {group}\n"
+
 
         with open('relatorio.txt', 'w', encoding='utf-8') as f:
             f.write(report)
