@@ -22,17 +22,12 @@ TOP 10 USUÁRIOS MAIS INFLUENTES (POR GRAU TOTAL):
 9. mhvk: Grau total = 329
 10. juliantaylor: Grau total = 308
 
-TOP 10 USUÁRIOS COM MAIOR GRAU PONDERADO (ENTRADA + SAÍDA):
+TOP 5 USUÁRIOS COM MAIOR GRAU PONDERADO (ENTRADA + SAÍDA):
 1. seberg
 2. eric-wieser
 3. charris
 4. mattip
 5. rgommers
-6. njsmith
-7. rossbar
-8. pv
-9. mhvk
-10. juliantaylor
 
 Número de Grupos Naturais (Componentes Fortemente Conexos): 5963
 

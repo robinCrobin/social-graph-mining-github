@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para explorar dados minerados do GitHub - Versão Otimizada
+Script para explorar dados minerados do GitHub
 """
 
 import os
@@ -18,14 +18,12 @@ class DataExplorer:
         self._pr_cache = {}
         self._issue_cache = {}
         
-        # Cria o arquivo relatorio.txt vazio no início
         with open('relatorio.txt', 'w', encoding='utf-8') as f:
             pass
     
     def load_data(self):
-        """Carrega os dados dos arquivos CSV de forma otimizada"""
+        """Carrega os dados dos arquivos CSV"""
         try:
-            # Carrega apenas colunas necessárias para cada DataFrame
             self.issues = pd.read_csv('data/issues.csv', 
                                     usecols=['author', 'state', 'closed_at', 'number'])
             self.pull_requests = pd.read_csv('data/pull_requests.csv', 
@@ -35,11 +33,9 @@ class DataExplorer:
             self.reviews = pd.read_csv('data/reviews.csv', 
                                      usecols=['pr_number', 'author', 'state'])
             
-            # Pré-processamento básico
             for df in [self.issues, self.pull_requests, self.comments, self.reviews]:
                 df['author'] = df['author'].fillna('unknown')
             
-            # Cria dicionários para acesso rápido
             self._pr_cache = {row['number']: row for _, row in self.pull_requests.iterrows()}
             self._issue_cache = {row['number']: row for _, row in self.issues.iterrows()}
             
@@ -54,11 +50,10 @@ class DataExplorer:
             self.data = None
     
     def build_interaction_graph(self):
-        """Constrói o grafo de interações de forma otimizada"""
+        """Constrói o grafo de interações"""
         if not self.data:
             return
         
-        # Processa em lotes para melhor desempenho
         self._process_reviews_batch()
         self._process_comments_batch()
     
@@ -84,7 +79,7 @@ class DataExplorer:
             interactions.append((
                 pr_author,
                 review_author,
-                1,  # Peso padrão para arestas
+                1,  
                 f"Review on PR #{review['pr_number']} ({review.get('state', 'unknown')})"
             ))
         
@@ -105,14 +100,14 @@ class DataExplorer:
                 interactions.append((
                     source_row['author'],
                     comment['author'],
-                    1,  # Peso padrão para arestas
+                    1, 
                     f"Comment on #{comment['issue_number']}"
                 ))
         
         self._add_batch_interactions(interactions)
     
     def _add_batch_interactions(self, interactions):
-        """Adiciona um lote de interações ao grafo de forma otimizada"""
+        """Adiciona um lote de interações ao grafo"""
         for source, target, weight, label in interactions:
             if source == target or not source or not target:
                 continue
@@ -127,7 +122,6 @@ class DataExplorer:
                 self.graph.lib_set_vertex_label(target, target)
                 self.added_vertices.add(target)
             
-            # Adiciona a aresta
             self.graph.lib_add_edge(
                 source_id=source,
                 target_id=target,
@@ -160,9 +154,7 @@ class DataExplorer:
 
         for i in range(n):
             vertex_id = ids[i]
-            # Soma das arestas de saída (linha i)
             out_degree = sum(self.graph.matrix[i][j] for j in range(n))
-            # Soma das arestas de entrada (coluna i)
             in_degree = sum(self.graph.matrix[j][i] for j in range(n))
             weighted_degrees[vertex_id] = out_degree + in_degree
 
@@ -172,16 +164,13 @@ class DataExplorer:
         """Identifica grupos naturais (componentes fortemente conectados)"""
         from collections import defaultdict, deque
 
-        # Lista de vértices e índice reverso
         ids = [v.id for v in self.graph.vertices]
         index_map = {v.id: i for i, v in enumerate(self.graph.vertices)}
         n = len(ids)
 
-        # Grafo normal e transposto
         adj = [[] for _ in range(n)]
         transpose = [[] for _ in range(n)]
 
-        # Monta listas de adjacência normal e transposta
         for i in range(n):
             for j in range(n):
                 if self.graph.matrix[i][j] > 0:
@@ -205,12 +194,10 @@ class DataExplorer:
                 if not visited[nei]:
                     reverse_dfs(nei, group)
 
-        # Primeira passada: ordem de finalização
         for i in range(n):
             if not visited[i]:
                 dfs(i)
 
-        # Segunda passada no grafo transposto
         visited = [False] * n
         groups = []
 
@@ -248,21 +235,18 @@ class DataExplorer:
         report += f"Total de Pull Requests: {len(self.pull_requests)}\n"
         report += f"Total de Comentários: {len(self.comments)}\n"
         report += f"Total de Reviews: {len(self.reviews)}\n"
-        
-        report += f"\nTotal de Vértices no Grafo: {len(self.graph.vertices)}\n"
-        report += f"Total de Arestas no Grafo: {len(self.graph.edges)}\n"
-        
-        top_users = self.identify_influential_users()
-        if top_users:
-            report += "\nTOP 10 USUÁRIOS MAIS INFLUENTES (POR GRAU TOTAL):\n"
-            for i, (user, score) in enumerate(top_users, 1):
-                report += f"{i}. {user}: Grau total = {score}\n"
-        
+
         top_weighted = self.identify_top_weighted_vertices()
         if top_weighted:
-            report += "\nTOP 10 USUÁRIOS COM MAIOR GRAU PONDERADO (ENTRADA + SAÍDA):\n"
+            report += "\nTOP 5 USUÁRIOS COM MAIOR INFLUENCIA:\n"
             for i, (user, _) in enumerate(top_weighted, 1):
                 report += f"{i}. {user}\n"
+
+        top_users = self.identify_influential_users()
+        if top_users:
+            report += "\nTOP 10 USUÁRIOS QUE GERAM MAIOR FRAGMENTACAO:\n"
+            for i, (user, score) in enumerate(top_users, 1):
+                report += f"{i}. {user}: Grau total = {score}\n"
 
 
         natural_groups = self.identify_natural_groups()
@@ -275,13 +259,12 @@ class DataExplorer:
         with open('relatorio.txt', 'w', encoding='utf-8') as f:
             f.write(report)
         
-        # Exibe no console
         print(report)
 
 def main():
     explorer = DataExplorer()
     
-    print("EXPLORADOR DE DADOS - VERSÃO OTIMIZADA")
+    print("EXPLORADOR DE DADOS")
     print("="*50)
     
     explorer.load_data()
