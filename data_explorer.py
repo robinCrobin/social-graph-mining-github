@@ -1,455 +1,209 @@
 #!/usr/bin/env python3
 """
-Script para explorar dados minerados do GitHub
+Script para explorar dados minerados do GitHub - Versão Otimizada
 """
 
 import os
 import pandas as pd
-from datetime import datetime
-from collections import Counter, defaultdict, deque
+from collections import defaultdict
 import heapq
-from itertools import combinations
-from graphs_project.matrix import MatrixGraph  # ou from graphs_project.list import ListGraph
-from graphs_project.list import ListGraph
+from graphs_project.matrix import MatrixGraph
 
 class DataExplorer:
-    """Explorador de dados minerados"""
+    def __init__(self):
+        """Inicializa o explorador de dados"""
+        self.graph = MatrixGraph(directed=True)
+        self.added_vertices = set()
+        self.data = None
+        self._pr_cache = {}
+        self._issue_cache = {}
+        
+        # Cria o arquivo relatorio.txt vazio no início
+        with open('relatorio.txt', 'w', encoding='utf-8') as f:
+            pass
     
-    def __init__(self, data_dir: str = "data"):
-        self.data_dir = data_dir
-        self.data = {}
-        self.user_interactions = None
-        self.user_degrees = None
-        self.user_nodes = None
-        
     def load_data(self):
-        """Carrega todos os arquivos CSV"""
-        files = {
-            'issues': 'issues.csv',
-            'pull_requests': 'pull_requests.csv',
-            'comments': 'comments.csv',
-            'reviews': 'reviews.csv'
-        }
-        
-        cols_to_load = {
-            'issues': ['author', 'assignees', 'number'],
-            'pull_requests': ['author', 'assignees', 'number'],
-            'comments': ['author', 'issue_number'],
-            'reviews': ['author', 'pr_number']
-        }
-        
-        for key, filename in files.items():
-            filepath = os.path.join(self.data_dir, filename)
-            if os.path.exists(filepath):
-                try:
-                    df = pd.read_csv(filepath, usecols=cols_to_load.get(key, None))
-                    self.data[key] = df
-                    print(f"✅ {key}: {len(df)} registros carregados")
-                except Exception as e:
-                    print(f"❌ Erro ao carregar {filename}: {e}")
-            else:
-                print(f"⚠️  Arquivo não encontrado: {filename}")
+        """Carrega os dados dos arquivos CSV de forma otimizada"""
+        try:
+            # Carrega apenas colunas necessárias para cada DataFrame
+            self.issues = pd.read_csv('data/issues.csv', 
+                                    usecols=['author', 'state', 'closed_at', 'number'])
+            self.pull_requests = pd.read_csv('data/pull_requests.csv', 
+                                           usecols=['author', 'state', 'merged_at', 'closed_at', 'number', 'merged'])
+            self.comments = pd.read_csv('data/comments.csv', 
+                                      usecols=['author', 'issue_number'])
+            self.reviews = pd.read_csv('data/reviews.csv', 
+                                     usecols=['pr_number', 'author', 'state'])
+            
+            # Pré-processamento básico
+            for df in [self.issues, self.pull_requests, self.comments, self.reviews]:
+                df['author'] = df['author'].fillna('unknown')
+            
+            # Cria dicionários para acesso rápido
+            self._pr_cache = {row['number']: row for _, row in self.pull_requests.iterrows()}
+            self._issue_cache = {row['number']: row for _, row in self.issues.iterrows()}
+            
+            self.data = {
+                'issues': self.issues,
+                'pull_requests': self.pull_requests,
+                'comments': self.comments,
+                'reviews': self.reviews
+            }
+        except Exception as e:
+            print(f"Erro ao carregar dados: {str(e)}")
+            self.data = None
     
     def build_interaction_graph(self):
-        """Constrói um grafo de interações"""
+        """Constrói o grafo de interações de forma otimizada"""
         if not self.data:
-            print("❌ Nenhum dado carregado!")
-            return None
-            
-        interactions = defaultdict(dict)
-        degrees = defaultdict(int)
+            return
         
-        self._preprocess_authors()
-        
-        self._process_issues(interactions, degrees)
-        self._process_pull_requests(interactions, degrees)
-        self._process_comments(interactions, degrees)
-        self._process_reviews(interactions, degrees)
-        
-        self.user_interactions = dict(interactions)
-        self.user_degrees = dict(degrees)
-        self.user_nodes = set(interactions.keys())
-        return interactions
+        # Processa em lotes para melhor desempenho
+        self._process_reviews_batch()
+        self._process_comments_batch()
     
-    def _preprocess_authors(self):
-        """Pré-processa autores para acesso rápido"""
-        self.issue_authors = {}
-        self.pr_authors = {}
-        
-        if 'issues' in self.data:
-            self.issue_authors = dict(zip(
-                self.data['issues']['number'],
-                self.data['issues']['author']
-            ))
-        
-        if 'pull_requests' in self.data:
-            self.pr_authors = dict(zip(
-                self.data['pull_requests']['number'],
-                self.data['pull_requests']['author']
-            ))
-    
-    def _process_issues(self, interactions, degrees):
-        """Processa interações em issues"""
-        if 'issues' not in self.data:
+    def _process_reviews_batch(self):
+        """Processa reviews em lote"""
+        if 'pr_number' not in self.reviews.columns or 'author' not in self.reviews.columns:
+            print("Colunas necessárias não encontradas no arquivo de reviews")
             return
             
-        issues_df = self.data['issues']
-        issues_df = issues_df[['author', 'assignees']].dropna()
+        interactions = []
         
-        for author, assignees_str in issues_df.itertuples(index=False):
-            assignees = [a.strip() for a in assignees_str.split(',') if a.strip()]
-            for assignee in assignees:
-                interactions[author][assignee] = interactions[author].get(assignee, 0) + 1
-                interactions[assignee][author] = interactions[assignee].get(author, 0) + 1
-                degrees[author] += 1
-                degrees[assignee] += 1
-    
-    def _process_pull_requests(self, interactions, degrees):
-        """Processa interações em pull requests"""
-        if 'pull_requests' not in self.data:
-            return
-            
-        prs_df = self.data['pull_requests']
-        prs_df = prs_df[['author', 'assignees']].dropna()
-        
-        for author, assignees_str in prs_df.itertuples(index=False):
-            assignees = [a.strip() for a in assignees_str.split(',') if a.strip()]
-            for assignee in assignees:
-                interactions[author][assignee] = interactions[author].get(assignee, 0) + 1
-                interactions[assignee][author] = interactions[assignee].get(author, 0) + 1
-                degrees[author] += 1
-                degrees[assignee] += 1
-    
-    def _process_comments(self, interactions, degrees):
-        """Processa interações em comentários"""
-        if 'comments' not in self.data or not self.issue_authors:
-            return
-            
-        comments_df = self.data['comments']
-        comments_df = comments_df[['author', 'issue_number']].dropna()
-        
-        for author, issue_num in comments_df.itertuples(index=False):
-            issue_author = self.issue_authors.get(issue_num)
-            if issue_author and issue_author != author:
-                interactions[author][issue_author] = interactions[author].get(issue_author, 0) + 1
-                interactions[issue_author][author] = interactions[issue_author].get(author, 0) + 1
-                degrees[author] += 1
-                degrees[issue_author] += 1
-    
-    def _process_reviews(self, interactions, degrees):
-        """Processa interações em reviews"""
-        if 'reviews' not in self.data or not self.pr_authors:
-            return
-            
-        reviews_df = self.data['reviews']
-        reviews_df = reviews_df[['author', 'pr_number']].dropna()
-        
-        for author, pr_num in reviews_df.itertuples(index=False):
-            pr_author = self.pr_authors.get(pr_num)
-            if pr_author and pr_author != author:
-                interactions[author][pr_author] = interactions[author].get(pr_author, 0) + 1
-                interactions[pr_author][author] = interactions[pr_author].get(author, 0) + 1
-                degrees[author] += 1
-                degrees[pr_author] += 1
-    
-    def get_top_influencers(self, top_n=5):
-        """Identifica os top_n usuários mais influentes"""
-        if self.user_degrees is None:
-            self.build_interaction_graph()
-        
-        if not self.user_degrees:
-            return []
-        
-        return heapq.nlargest(top_n, self.user_degrees.items(), key=lambda x: x[1])
-    
-    def identify_fragmentation_sources(self):
-        """Funcao para identificar fontes de fragmentação"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if not self.user_interactions:
-            return []
-        
-        fragmentation_scores = {}
-        
-        for user in self.user_interactions:
-            neighbors = set(self.user_interactions[user].keys())
-            degree = len(neighbors)
-            
-            if degree < 2:
-                fragmentation_scores[user] = 0
+        for _, review in self.reviews.iterrows():
+            pr = self._pr_cache.get(review['pr_number'])
+            if pr is None:
                 continue
                 
-            triangles = 0
-            for n1, n2 in combinations(neighbors, 2):
-                if n2 in self.user_interactions.get(n1, {}):
-                    triangles += 1
+            pr_author = pr['author']
+            review_author = review['author']
             
-            possible_triangles = degree * (degree - 1) / 2
-            clustering_coeff = triangles / possible_triangles
-            
-            fragmentation_scores[user] = degree * (1 - clustering_coeff)
-        
-        return sorted(fragmentation_scores.items(), key=lambda x: x[1], reverse=True)
-    
-    def find_natural_groups(self):
-        """Algoritmo para detecção de comunidades"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if not self.user_interactions:
-            return {}
-        
-        labels = {user: i for i, user in enumerate(self.user_interactions)}
-        
-        changed = True
-        max_iter = 10
-        current_iter = 0
-        
-        while changed and current_iter < max_iter:
-            changed = False
-            current_iter += 1
-            
-            nodes_ordered = sorted(self.user_interactions.keys(),
-                                 key=lambda x: -len(self.user_interactions[x]))
-            
-            for node in nodes_ordered:
-                if not self.user_interactions[node]:
-                    continue
-                    
-                neighbor_labels = Counter()
-                for neighbor in self.user_interactions[node]:
-                    neighbor_labels[labels[neighbor]] += 1
+            if pd.isna(pr_author) or pd.isna(review_author):
+                continue
                 
-                if not neighbor_labels:
-                    continue
+            interactions.append((
+                pr_author,
+                review_author,
+                1,  # Peso padrão para arestas
+                f"Review on PR #{review['pr_number']} ({review.get('state', 'unknown')})"
+            ))
+        
+        self._add_batch_interactions(interactions)
+    
+    def _process_comments_batch(self):
+        """Processa comentários em lote"""
+        if 'issue_number' not in self.comments.columns:
+            return
+            
+        interactions = []
+        
+        for _, comment in self.comments.iterrows():
+            issue_num = comment['issue_number']
+            source_row = self._issue_cache.get(issue_num, self._pr_cache.get(issue_num))
+            
+            if source_row is not None:
+                interactions.append((
+                    source_row['author'],
+                    comment['author'],
+                    1,  # Peso padrão para arestas
+                    f"Comment on #{comment['issue_number']}"
+                ))
+        
+        self._add_batch_interactions(interactions)
+    
+    def _add_batch_interactions(self, interactions):
+        """Adiciona um lote de interações ao grafo de forma otimizada"""
+        for source, target, weight, label in interactions:
+            if source == target or not source or not target:
+                continue
                 
-                most_common = neighbor_labels.most_common(1)[0][0]
+            if source not in self.added_vertices:
+                self.graph.lib_add_vertex(source)
+                self.graph.lib_set_vertex_label(source, source)
+                self.added_vertices.add(source)
                 
-                if labels[node] != most_common:
-                    labels[node] = most_common
-                    changed = True
-        
-        groups = defaultdict(list)
-        for user, group_id in labels.items():
-            groups[group_id].append(user)
-        
-        return dict(groups)
+            if target not in self.added_vertices:
+                self.graph.lib_add_vertex(target)
+                self.graph.lib_set_vertex_label(target, target)
+                self.added_vertices.add(target)
+            
+            # Adiciona a aresta
+            self.graph.lib_add_edge(
+                source_id=source,
+                target_id=target,
+                weight=weight,
+                label=label
+            )
     
-    def calculate_connection_level(self):
-        """Cálculo do nível de conexão"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if not self.user_interactions:
-            return 0.0
-        
-        n = len(self.user_interactions)
-        if n < 2:
-            return 0.0
-        
-        existing_edges = sum(len(neighbors) for neighbors in self.user_interactions.values()) // 2
-        
-        max_edges = n * (n - 1) // 2
-        
-        return (existing_edges / max_edges) * 100
-    
-    def find_closest_users(self, user, top_n=5):
-        """BFS para encontrar usuários mais próximos"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if user not in self.user_interactions:
-            return []
-        
-        distances = {user: 0}
-        queue = deque([user])
-        
-        while queue:
-            current = queue.popleft()
-            for neighbor in self.user_interactions[current]:
-                if neighbor not in distances:
-                    distances[neighbor] = distances[current] + 1
-                    queue.append(neighbor)
-        
-        distances.pop(user)
-        
-        closest = heapq.nsmallest(top_n, distances.items(), key=lambda x: x[1])
-        return closest
-    
-    def find_non_interacting_closest(self, user, top_n=5):
-        """Funcao para encontrar próximos não interagentes"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if user not in self.user_interactions:
-            return []
-        
-        direct_neighbors = set(self.user_interactions[user].keys())
-        
-        closest = self.find_closest_users(user, top_n + len(direct_neighbors))
-        
-        non_interacting = [(u, d) for u, d in closest if u not in direct_neighbors]
-        
-        return non_interacting[:top_n]
-    
-    def find_connected_components(self):
-        """Encontra todos os componentes conexos no grafo"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if not self.user_interactions:
-            return []
-        
-        visited = set()
-        components = []
-        
-        for node in self.user_interactions:
-            if node not in visited:
-                queue = deque([node])
-                component = set()
-                while queue:
-                    current = queue.popleft()
-                    if current not in visited:
-                        visited.add(current)
-                        component.add(current)
-                        for neighbor in self.user_interactions.get(current, {}):
-                            if neighbor not in visited:
-                                queue.append(neighbor)
-                components.append(component)
-        
-        return components
-    
-    def calculate_fragmentation_impact(self, user):
-        """Calcula quantos novos componentes seriam criados ao remover o usuário"""
-        if self.user_interactions is None:
-            self.build_interaction_graph()
-        
-        if user not in self.user_interactions:
-            return 0
-        
-        original_components = self.find_connected_components()
-        original_count = len(original_components)
-        
-        new_graph = {
-            u: {v: w for v, w in neighbors.items() if v != user}
-            for u, neighbors in self.user_interactions.items()
-            if u != user
-        }
-        
-        visited = set()
-        new_count = 0
-        
-        for node in new_graph:
-            if node not in visited:
-                queue = deque([node])
-                while queue:
-                    current = queue.popleft()
-                    if current not in visited:
-                        visited.add(current)
-                        for neighbor in new_graph.get(current, {}):
-                            if neighbor not in visited:
-                                queue.append(neighbor)
-                new_count += 1
-    
-        return new_count - original_count
+    def calculate_user_scores(self):
+        """Calcula a pontuação de cada usuário baseada no grau total (entrada + saída)"""
+        user_scores = defaultdict(int)
+        ids = [v.id for v in self.graph.vertices]
+        n = len(ids)
 
-    def generate_report(self, output_file: str = "data_report.txt"):
-        """Gera relatório"""
-        print(f"\n📄 Gerando relatório: {output_file}")
-        
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write("RELATÓRIO DE ANÁLISE\n")
-            f.write("=" * 80 + "\n")
-            f.write(f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        for i in range(n):
+            for j in range(n):
+                weight = self.graph.matrix[i][j]
+                if weight > 0:
+                    source_id = ids[i]
+                    target_id = ids[j]
+                    user_scores[source_id] += weight  # saída
+                    user_scores[target_id] += weight  # entrada
 
-            f.write("DADOS CARREGADOS:\n")
-            f.write("-" * 60 + "\n")
-            f.write(f"Issues: {len(self.data.get('issues', [])):,} registros\n")
-            f.write(f"Pull Requests: {len(self.data.get('pull_requests', [])):,} registros\n")
-            f.write(f"Comments: {len(self.data.get('comments', [])):,} registros\n")
-            f.write(f"Reviews: {len(self.data.get('reviews', [])):,} registros\n")
-            f.write("\n")
-            
-            f.write("\n1. TOP 5 USUÁRIOS MAIS INFLUENTES\n")
-            f.write("-" * 60 + "\n")
-            top_influencers = self.get_top_influencers(5)
-            for i, (user, degree) in enumerate(top_influencers, 1):
-                f.write(f"{i}. {user}: grau {degree}\n")
-            
-            f.write("\n2. PRINCIPAIS FONTES DE FRAGMENTAÇÃO\n")
-            f.write("-" * 60 + "\n")
-            fragmenters = self.identify_fragmentation_sources()[:5]
-            
-            if not fragmenters:
-                f.write("Nenhuma fonte de fragmentação identificada.\n")
-            else:
-                f.write("Principais usuários que podem causar maior fragmentação:\n\n")
-                
-                for i, (user, score) in enumerate(fragmenters, 1):
-                    degree = self.user_degrees.get(user, 0)
-                    neighbors = list(self.user_interactions.get(user, {}).keys())
-                    neighbor_count = len(neighbors)
-                    sample_neighbors = ", ".join(neighbors[:3]) + ("..." if neighbor_count > 3 else "")
-                    
-                    triangles = 0
-                    for n1, n2 in combinations(neighbors, 2):
-                        if n2 in self.user_interactions.get(n1, {}):
-                            triangles += 1
-                    
-                    f.write(f"{i}. {user}:\n")
-                    f.write(f"   - Score de fragmentação: {score:.2f}\n")
-                    f.write(f"   - Novos componentes se removido: {self.calculate_fragmentation_impact(user)}\n")
-                    f.write(f"   - Grau de conexão: {degree}\n")
-                    f.write(f"   - Conexões diretas: {neighbor_count}\n")
-                    f.write(f"   - Amostra de conexões: {sample_neighbors}\n")
-                    
-                    non_interacting = self.find_non_interacting_closest(user, 3)
-                    if non_interacting:
-                        f.write("   - Potenciais conexões ausentes (mais próximas não conectadas):\n")
-                        for j, (target, distance) in enumerate(non_interacting, 1):
-                            f.write(f"      {j}. {target} (distância {distance})\n")
-                    f.write("\n")
-            
-            f.write("\n3. GRUPOS NATURAIS (TOP 3)\n")
-            f.write("-" * 60 + "\n")
-            groups = self.find_natural_groups()
-            if groups:
-                sorted_groups = sorted(groups.items(), key=lambda x: -len(x[1]))[:3]
-                for i, (group_id, members) in enumerate(sorted_groups, 1):
-                    f.write(f"\nGrupo {i} ({len(members)} membros):\n")
-                    f.write(", ".join(members[:5]))
-                    if len(members) > 5:
-                        f.write(", ...")
-            else:
-                f.write("Nenhum grupo identificado.\n")
-            
-            f.write("\n\n4. NÍVEL DE CONEXÃO DA COMUNIDADE\n")
-            f.write("-" * 60 + "\n")
-            connection_level = self.calculate_connection_level()
-            f.write(f"{connection_level:.2f}% de conexão\n")
-            
-            f.write("\n" + "=" * 80 + "\n")
-            f.write("FIM DO RELATÓRIO\n")
+        return user_scores
+
+    
+    def identify_influential_users(self, top_n=10):
+        """Identifica os usuários mais influentes baseado no grau total"""
+        user_scores = self.calculate_user_scores()
+        return heapq.nlargest(top_n, user_scores.items(), key=lambda x: x[1])
+
+    def generate_report(self):
+        """Gera um relatório básico sobre os dados"""
+        report = "\nRELATÓRIO DE DADOS\n"
+        report += "="*50 + "\n"
         
-        print(f"✅ Relatório salvo em: {output_file}")
+        if not self.data:
+            report += "Nenhum dado disponível para gerar relatório\n"
+            return
+        
+        report += f"\nTotal de Issues: {len(self.issues)}\n"
+        report += f"Total de Pull Requests: {len(self.pull_requests)}\n"
+        report += f"Total de Comentários: {len(self.comments)}\n"
+        report += f"Total de Reviews: {len(self.reviews)}\n"
+        
+        report += f"\nTotal de Vértices no Grafo: {len(self.graph.vertices)}\n"
+        report += f"Total de Arestas no Grafo: {len(self.graph.edges)}\n"
+        
+        top_users = self.identify_influential_users()
+        if top_users:
+            report += "\nTOP 10 USUÁRIOS MAIS INFLUENTES (POR GRAU TOTAL):\n"
+            for i, (user, score) in enumerate(top_users, 1):
+                report += f"{i}. {user}: Grau total = {score}\n"
+        
+        # Salva o relatório em arquivo
+        with open('relatorio.txt', 'w', encoding='utf-8') as f:
+            f.write(report)
+        
+        # Exibe no console
+        print(report)
 
 def main():
     explorer = DataExplorer()
     
-    print("🔍 EXPLORADOR DE DADOS")
+    print("EXPLORADOR DE DADOS - VERSÃO OTIMIZADA")
     print("="*50)
     
     explorer.load_data()
     
     if not explorer.data:
-        print("❌ Nenhum dado encontrado!")
+        print("Nenhum dado encontrado!")
         return
     
-    print("\n⏳ Construindo grafo de interações...")
+    print("\nConstruindo grafo de interações...")
     explorer.build_interaction_graph()
     
-    print("📊 Gerando relatório...")
+    print("Gerando relatório...")
     explorer.generate_report()
 
 if __name__ == "__main__":
