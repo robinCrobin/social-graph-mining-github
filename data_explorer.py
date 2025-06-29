@@ -147,12 +147,89 @@ class DataExplorer:
                 if weight > 0:
                     source_id = ids[i]
                     target_id = ids[j]
-                    user_scores[source_id] += weight  # saída
-                    user_scores[target_id] += weight  # entrada
+                    user_scores[source_id] += weight  
+                    user_scores[target_id] += weight  
 
         return user_scores
 
+    def calculate_weighted_degrees(self):
+        """Calcula o grau ponderado de entrada + saída de cada vértice"""
+        weighted_degrees = {}
+        ids = [v.id for v in self.graph.vertices]
+        n = len(ids)
+
+        for i in range(n):
+            vertex_id = ids[i]
+            # Soma das arestas de saída (linha i)
+            out_degree = sum(self.graph.matrix[i][j] for j in range(n))
+            # Soma das arestas de entrada (coluna i)
+            in_degree = sum(self.graph.matrix[j][i] for j in range(n))
+            weighted_degrees[vertex_id] = out_degree + in_degree
+
+        return weighted_degrees
     
+    def identify_natural_groups(self):
+        """Identifica grupos naturais (componentes fortemente conectados)"""
+        from collections import defaultdict, deque
+
+        # Lista de vértices e índice reverso
+        ids = [v.id for v in self.graph.vertices]
+        index_map = {v.id: i for i, v in enumerate(self.graph.vertices)}
+        n = len(ids)
+
+        # Grafo normal e transposto
+        adj = [[] for _ in range(n)]
+        transpose = [[] for _ in range(n)]
+
+        # Monta listas de adjacência normal e transposta
+        for i in range(n):
+            for j in range(n):
+                if self.graph.matrix[i][j] > 0:
+                    adj[i].append(j)
+                    transpose[j].append(i)
+
+        visited = [False] * n
+        finish_stack = []
+
+        def dfs(v):
+            visited[v] = True
+            for nei in adj[v]:
+                if not visited[nei]:
+                    dfs(nei)
+            finish_stack.append(v)
+
+        def reverse_dfs(v, group):
+            visited[v] = True
+            group.append(ids[v])
+            for nei in transpose[v]:
+                if not visited[nei]:
+                    reverse_dfs(nei, group)
+
+        # Primeira passada: ordem de finalização
+        for i in range(n):
+            if not visited[i]:
+                dfs(i)
+
+        # Segunda passada no grafo transposto
+        visited = [False] * n
+        groups = []
+
+        while finish_stack:
+            v = finish_stack.pop()
+            if not visited[v]:
+                group = []
+                reverse_dfs(v, group)
+                if group:
+                    groups.append(group)
+
+        return groups
+
+    
+    def identify_top_weighted_vertices(self, top_n=5):
+        """Retorna os top_n vértices com maior grau ponderado"""
+        weighted_degrees = self.calculate_weighted_degrees()
+        return heapq.nlargest(top_n, weighted_degrees.items(), key=lambda x: x[1])
+
     def identify_influential_users(self, top_n=10):
         """Identifica os usuários mais influentes baseado no grau total"""
         user_scores = self.calculate_user_scores()
@@ -181,7 +258,20 @@ class DataExplorer:
             for i, (user, score) in enumerate(top_users, 1):
                 report += f"{i}. {user}: Grau total = {score}\n"
         
-        # Salva o relatório em arquivo
+        top_weighted = self.identify_top_weighted_vertices()
+        if top_weighted:
+            report += "\nTOP 10 USUÁRIOS COM MAIOR GRAU PONDERADO (ENTRADA + SAÍDA):\n"
+            for i, (user, _) in enumerate(top_weighted, 1):
+                report += f"{i}. {user}\n"
+
+
+        natural_groups = self.identify_natural_groups()
+        report += f"\nNúmero de Grupos Naturais (Componentes Fortemente Conexos): {len(natural_groups)}\n"
+        if natural_groups:
+            report += "\nExemplo de Grupos Naturais:\n"
+            for i, group in enumerate(natural_groups[:5], 1):
+                report += f"{i}. {group}\n"
+
         with open('relatorio.txt', 'w', encoding='utf-8') as f:
             f.write(report)
         

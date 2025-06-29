@@ -1,0 +1,44 @@
+
+RELATÓRIO DE DADOS
+==================================================
+
+Total de Issues: 13388
+Total de Pull Requests: 20703
+Total de Comentários: 49532
+Total de Reviews: 40335
+
+Total de Vértices no Grafo: 6583
+Total de Arestas no Grafo: 57907
+
+TOP 10 USUÁRIOS MAIS INFLUENTES (POR GRAU TOTAL):
+1. seberg: Grau total = 1728
+2. eric-wieser: Grau total = 1670
+3. charris: Grau total = 1494
+4. mattip: Grau total = 1338
+5. rgommers: Grau total = 816
+6. njsmith: Grau total = 653
+7. rossbar: Grau total = 490
+8. pv: Grau total = 452
+9. mhvk: Grau total = 329
+10. juliantaylor: Grau total = 308
+
+TOP 10 USUÁRIOS COM MAIOR GRAU PONDERADO (ENTRADA + SAÍDA):
+1. seberg
+2. eric-wieser
+3. charris
+4. mattip
+5. rgommers
+6. njsmith
+7. rossbar
+8. pv
+9. mhvk
+10. juliantaylor
+
+Número de Grupos Naturais (Componentes Fortemente Conexos): 5963
+
+Exemplo de Grupos Naturais:
+1. ['tim-mitchell']
+2. ['nagesh-chowdaiah']
+3. ['nickjbrowning']
+4. ['Moe82']
+5. ['djarecka']
