@@ -39,7 +39,7 @@ class DataExplorer:
 
             self._pr_cache = {row['number']: row for _,
                               row in self.pull_requests.iterrows()}
-            self._issue_cache = {row['number']                                 : row for _, row in self.issues.iterrows()}
+            self._issue_cache = {row['number']: row for _, row in self.issues.iterrows()}
 
             self.data = {
                 'issues': self.issues,
@@ -259,7 +259,39 @@ class DataExplorer:
         return len(neighbors)
 
     # USUÁRIOS MAIS PRÓXIMOS QUE NÃO INTERAGEM DADO UM USUÁRIO
-    # A fazer
+    def get_total_indirect_neighbors(self, user_id):
+        """Retorna o número total de vizinhos indiretos de um usuário (nó), ou seja, aqueles a 2 ou 3 níveis de distância (sem ligação direta)."""
+        if user_id not in self.added_vertices:
+            return 0
+
+        ids = [v.id for v in self.graph.vertices]
+        index_map = {v.id: i for i, v in enumerate(self.graph.vertices)}
+        n = len(ids)
+
+        start = index_map.get(user_id)
+        if start is None:
+            return 0
+
+        visited = set()
+        level = {start: 0}
+        queue = [(start, 0)]
+
+        while queue:
+            current, depth = queue.pop(0)
+            if depth >= 3:
+                continue
+
+            for neighbor in range(n):
+                if self.graph.matrix[current][neighbor] > 0 or self.graph.matrix[neighbor][current] > 0:
+                    if neighbor not in level:
+                        level[neighbor] = depth + 1
+                        queue.append((neighbor, depth + 1))
+
+        # Coletar apenas os nós de nível 2 e 3
+        indirect_neighbors = {ids[node]
+                              for node, d in level.items() if d in (2, 3)}
+
+        return len(indirect_neighbors)
 
     # GERAÇÃO DE RELATÓRIO
     def generate_report(self):
@@ -310,6 +342,19 @@ class DataExplorer:
         report += f"5. Usuário rgommers: {top5UserNeighbors} usuários mais próximos (vizinhos diretos)\n"
 
         report += "\nUSUÁRIOS MAIS PRÓXIMOS QUE NÃO INTERAGEM DADO UM USUÁRIO\n"
+        top1UserIndirectNeighbors = self.get_total_indirect_neighbors("seberg")
+        top2UserIndirectNeighbors = self.get_total_indirect_neighbors(
+            "eric-wieser")
+        top3UserIndirectNeighbors = self.get_total_indirect_neighbors(
+            "charris")
+        top4UserIndirectNeighbors = self.get_total_indirect_neighbors("mattip")
+        top5UserIndirectNeighbors = self.get_total_indirect_neighbors(
+            "rgommers")
+        report += f"1. Usuário seberg: {top1UserIndirectNeighbors} usuários mais próximos que não interagem diretamente\n"
+        report += f"2. Usuário eric-wieser: {top2UserIndirectNeighbors} usuários mais próximos que não interagem diretamente\n"
+        report += f"3. Usuário charris: {top3UserIndirectNeighbors} usuários mais próximos que não interagem diretamente\n"
+        report += f"4. Usuário mattip: {top4UserIndirectNeighbors} usuários mais próximos que não interagem diretamente\n"
+        report += f"5. Usuário rgommers: {top5UserIndirectNeighbors} usuários mais próximos que não interagem diretamente\n"
 
         with open('relatorio.txt', 'w', encoding='utf-8') as f:
             f.write(report)
