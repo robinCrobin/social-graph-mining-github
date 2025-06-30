@@ -298,6 +298,16 @@ class DataExplorer:
         report += "\nTOP 5 COMUNIDADES E NÍVEL DE INFLUÊNCIA\n"
 
         report += "\nUSUÁRIOS MAIS PRÓXIMOS DADO UM USUÁRIO\n"
+        top1UserNeighbors = self.get_total_neighbors("seberg")
+        top2UserNeighbors = self.get_total_neighbors("eric-wieser")
+        top3UserNeighbors = self.get_total_neighbors("charris")
+        top4UserNeighbors = self.get_total_neighbors("mattip")
+        top5UserNeighbors = self.get_total_neighbors("rgommers")
+        report += f"1. Usuário seberg: {top1UserNeighbors} usuários mais próximos (vizinhos diretos)\n"
+        report += f"2. Usuário eric-wieser: {top2UserNeighbors} usuários mais próximos (vizinhos diretos)\n"
+        report += f"3. Usuário charris: {top3UserNeighbors} usuários mais próximos (vizinhos diretos)\n"
+        report += f"4. Usuário mattip: {top4UserNeighbors} usuários mais próximos (vizinhos diretos)\n"
+        report += f"5. Usuário rgommers: {top5UserNeighbors} usuários mais próximos (vizinhos diretos)\n"
 
         report += "\nUSUÁRIOS MAIS PRÓXIMOS QUE NÃO INTERAGEM DADO UM USUÁRIO\n"
 
