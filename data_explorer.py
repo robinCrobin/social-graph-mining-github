@@ -390,8 +390,6 @@ class DataExplorer:
         graph_density = self.calculate_graph_density()
         report += f"\nDENSIDADE DO GRAFO: {graph_density:.3f}\n"
 
-        report += "\nTOP 5 COMUNIDADES E NÍVEL DE INFLUÊNCIA\n"
-
         report += "\nUSUÁRIOS MAIS PRÓXIMOS DADO UM USUÁRIO\n"
         top1UserNeighbors = self.get_total_neighbors("seberg")
         top2UserNeighbors = self.get_total_neighbors("eric-wieser")
