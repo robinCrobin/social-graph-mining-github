@@ -110,7 +110,10 @@ class DataExplorer:
         self._add_batch_interactions(interactions)
 
     def _add_batch_interactions(self, interactions):
-        """Adiciona um lote de interações ao grafo"""
+        """Adiciona um lote de interações ao grafo, acumulando pesos"""
+        ids = [v.id for v in self.graph.vertices]
+        index_map = {v_id: i for i, v_id in enumerate(ids)}
+
         for source, target, weight, label in interactions:
             if source == target or not source or not target:
                 continue
@@ -125,29 +128,45 @@ class DataExplorer:
                 self.graph.lib_set_vertex_label(target, target)
                 self.added_vertices.add(target)
 
-            self.graph.lib_add_edge(
-                source_id=source,
-                target_id=target,
-                weight=weight,
-                label=label
-            )
+            ids = [v.id for v in self.graph.vertices]
+            index_map = {v_id: i for i, v_id in enumerate(ids)}
+
+            i = index_map[source]
+            j = index_map[target]
+            current_weight = self.graph.matrix[i][j]
+
+            if current_weight > 0:
+                self.graph.lib_set_edge_weight(
+                    weight=current_weight + weight,
+                    source_id=source,
+                    target_id=target
+                )
+            else:
+                self.graph.lib_add_edge(
+                    source_id=source,
+                    target_id=target,
+                    weight=weight,
+                    label=label
+                )
+
+
 
     def calculate_user_scores(self):
-        """Calcula a pontuação de cada usuário baseada no grau total (entrada + saída)"""
+        """Calcula o grau total (entrada + saída) de cada usuário, desconsiderando pesos"""
         user_scores = defaultdict(int)
         ids = [v.id for v in self.graph.vertices]
         n = len(ids)
 
         for i in range(n):
-            for j in range(n):
-                weight = self.graph.matrix[i][j]
-                if weight > 0:
-                    source_id = ids[i]
-                    target_id = ids[j]
-                    user_scores[source_id] += weight
-                    user_scores[target_id] += weight
+            vertex_id = ids[i]
+            out_degree = sum(1 for j in range(n) if self.graph.matrix[i][j] > 0)
+            in_degree = sum(1 for j in range(n) if self.graph.matrix[j][i] > 0)
+            user_scores[vertex_id] = in_degree + out_degree
 
         return user_scores
+
+
+
 
     def calculate_weighted_degrees(self):
         """Calcula o grau ponderado de entrada + saída de cada vértice"""
@@ -162,6 +181,7 @@ class DataExplorer:
             weighted_degrees[vertex_id] = out_degree + in_degree
 
         return weighted_degrees
+
 
     def identify_natural_groups(self):
         """Identifica grupos naturais (componentes fortemente conectados)"""
@@ -346,10 +366,10 @@ class DataExplorer:
         report += f"Total de Comentários: {len(self.comments)}\n"
         report += f"Total de Reviews: {len(self.reviews)}\n"
 
-        top_weighted = self.identify_top_weighted_vertices()
-        if top_weighted:
-            report += "\nTOP 5 USUÁRIOS COM MAIOR INFLUENCIA:\n"
-            for i, (user, _) in enumerate(top_weighted, 1):
+        top_influential_users = heapq.nlargest(5, self.calculate_weighted_degrees().items(), key=lambda x: x[1])
+        if top_influential_users:
+            report += "\nTOP 5 USUÁRIOS COM MAIOR INFLUÊNCIA\n"
+            for i, (user) in enumerate(top_influential_users, 1):
                 report += f"{i}. {user}\n"
 
         top_users = self.identify_influential_users()
