@@ -257,6 +257,44 @@ class DataExplorer:
         neighbors.discard(user_id)
 
         return len(neighbors)
+    
+    def calculate_group_connection_level(self, group):
+        """Calcula o nível de conexão (em %) de uma comunidade (grupo fortemente conexo)"""
+        ids = [v.id for v in self.graph.vertices]
+        index_map = {v: i for i, v in enumerate(ids)}
+
+        n = len(group)
+        if n <= 1:
+            return 100.0  
+
+        real_connections = 0
+        possible_connections = n * (n - 1)
+
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    src = index_map[group[i]]
+                    tgt = index_map[group[j]]
+                    if self.graph.matrix[src][tgt] > 0:
+                        real_connections += 1
+
+        return (real_connections / possible_connections) * 100
+
+
+    def calculate_graph_density(self):
+        """Calcula a densidade do grafo de interações"""
+        n = len(self.graph.vertices)
+        if n <= 1:
+            return 0.0
+
+        total_edges = 0
+        for i in range(n):
+            for j in range(n):
+                if self.graph.matrix[i][j] > 0:
+                    total_edges += 1
+
+        max_possible_edges = n * (n - 1) 
+        return total_edges / max_possible_edges
 
     # USUÁRIOS MAIS PRÓXIMOS QUE NÃO INTERAGEM DADO UM USUÁRIO
     def get_total_indirect_neighbors(self, user_id):
@@ -325,7 +363,11 @@ class DataExplorer:
         report += f"\nNúmero de Grupos Naturais (Componentes Fortemente Conexos): {len(natural_groups)}\n"
         report += "\nTOP 5 MAIORES GRUPOS NATURAIS:\n"
         for i, group in enumerate(natural_groups[:5], 1):
-            report += f"{i}. ({len(group)} membros): {group}\n"
+            conn_level = self.calculate_group_connection_level(group)
+            report += f"{i}. ({len(group)} membros, conexão: {conn_level:.2f}%): {group}\n"
+
+        graph_density = self.calculate_graph_density()
+        report += f"\nDENSIDADE DO GRAFO: {graph_density:.3f}\n"
 
         report += "\nTOP 5 COMUNIDADES E NÍVEL DE INFLUÊNCIA\n"
 
