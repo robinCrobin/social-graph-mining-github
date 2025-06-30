@@ -369,8 +369,9 @@ class DataExplorer:
         top_influential_users = heapq.nlargest(5, self.calculate_weighted_degrees().items(), key=lambda x: x[1])
         if top_influential_users:
             report += "\nTOP 5 USUÁRIOS COM MAIOR INFLUÊNCIA\n"
-            for i, (user) in enumerate(top_influential_users, 1):
+            for i, (user, _) in enumerate(top_influential_users, 1):
                 report += f"{i}. {user}\n"
+
 
         top_users = self.identify_influential_users()
         if top_users:
